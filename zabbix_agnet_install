@@ -1,0 +1,84 @@
+#!/bin/bash
+# date: 2019-01-29
+# author: chenhao.hu
+# purpose: zabbix agent install
+
+# define dir,ip,user
+tmp=/home/zabbix/zabbix_agent
+username=zabbix
+password=1qazxsw@
+source=http://10.0.201.45/zabbix_Linux.tar.gz
+ipaddr=$(ip addr | awk '/^[0-9]+: / {}; /inet.*global/ {print gensub(/(.*)\/(.*)/, "\\1", "g", $2)}')
+
+# define configure
+Server=(10.0.6.27 10.1.6.15 10.6.136.27 10.4.6.82)
+Metadata=(shanghai_idc_prod_linux shanghai_idc_test_linux shanghai_office_linux wenzhou_linux chengdu_office_linux)
+uatvlan=(6 8 85 201)
+
+# define network 
+Sernum=`echo $ipaddr|awk -F . '{print $2}'`
+vlannum=`echo $ipaddr|awk -F . '{print $3}'`
+
+# defind system version and command
+version=`cat /etc/redhat-release`
+cmd=`/home/zabbix/zabbix_agents/sbin/zabbix_agentd -c /home/zabbix/zabbix_agentd/conf/zabbix_agentd.conf`
+
+# install function
+zabbix_agent_install(){
+    cd $tmp
+    wget $source $tmp > /dev/null 2>&1
+    tar xf zabbix_Linux.tar.gz -C $tmp
+    if [ $Sernum == 0 ]
+    then
+        echo "Server=${Server[0]}" > $tmp/conf/zabbix_agentd.conf
+        echo "ServerActive=${Server[0]}" >> $tmp/conf/zabbix_agentd.conf
+        echo "Hostname=$ipaddr" >> $tmp/conf/zabbix_agentd.conf
+        if [[ $vlannum =~ $usatvlan ]]
+        then
+            echo "HostMetadata=${Metadata[1]}" >> $tmp/conf/zabbix_agentd.conf
+        else
+            echo "HostMetadata=${Metadata[0]}" >> $tmp/conf/zabbix_agentd.conf
+        fi
+    elif [ $Sernum == 1 ]
+    then
+        echo "Server=${Server[1]}" > $tmp/conf/zabbix_agentd.conf
+        echo "ServerActive=${Server[1]}" >> $tmp/conf/zabbix_agentd.conf
+        echo "Hostname=$ipaddr" >> $tmp/conf/zabbix_agentd.conf
+        echo "HostMetadata=${Metadata[2]}" >> $tmp/conf/zabbix_agentd.conf 
+    elif [ $Sernum == 6 ]
+    then
+        echo "Server=${Server[2]}" > $tmp/conf/zabbix_agentd.conf                 
+        echo "ServerActive=${Server[2]}" >> $tmp/conf/zabbix_agentd.conf
+        echo "Hostname=$ipaddr" >> $tmp/conf/zabbix_agentd.conf
+        echo "HostMetadata=${Metadata[3]}" >> $tmp/conf/zabbix_agentd.conf
+    else
+        echo "Server=${Server[3]}" > $tmp/conf/zabbix_agentd.conf
+        echo "ServerActive=${Server[3]}" >> $tmp/conf/zabbix_agentd.conf
+        echo "Hostname=$ipaddr" >> $tmp/conf/zabbix_agentd.conf
+        echo "HostMetadata=${Metadata[4]}" >> $tmp/conf/zabbix_agentd.conf
+    fi
+
+# Boot
+$cmd
+echo $cmd >> /etc/rc.local
+
+    if [[ 7 =~ $version ]]
+    then
+        chmod +x /etc/rc.d/rc.local
+    fi
+}
+
+# implement
+id zabbix > /dev/null 2>&1
+if [ $? -ne  0 ]
+then
+    useradd $username -p $password -s /sbin/nologin
+    mkdir -p $tmp
+    zabbix_agent_install
+elif [ -d $tmp ]
+then
+    zabbix_agent_install
+else
+    mkdir -p $tmp
+    zabbix_agent_install
+fi
